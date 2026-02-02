@@ -61,7 +61,7 @@ services:
       GF_DATABASE_NAME: ${DATABASE_NAME}
       GF_DATABASE_USER: ${DATABASE_USER}
       GF_DATABASE_PASSWORD: ${DATABASE_PASSWORD}
-      GF_INSTALL_PLUGINS: alexanderzobnin-zabbix-app,alexanderzobnin-zabbix-datasource,novalabs-ora-datasource,marcusolsson-json-datasource,grafana-piechart-panel
+      GF_INSTALL_PLUGINS: alexanderzobnin-zabbix-app,alexanderzobnin-zabbix-datasource,novalabs-ora-datasource,marcusolsson-json-datasource
       GF_PLUGIN_ALLOW_LOADING_UNSIGNED_PLUGINS: alexanderzobnin-zabbix-app,novalabs-ora-datasource
       GF_SERVER_ROOT_URL: http://localhost:3000
     volumes:
