@@ -50,9 +50,12 @@ services:
     ports:
       - 3000:3000
     depends_on:
-      - postgres
-      - redis
-      - prometheus
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      prometheus:
+        condition: service_started
     environment:
       GF_DATABASE_TYPE: postgres
       GF_DATABASE_HOST: postgres:5432
@@ -62,9 +65,6 @@ services:
       GF_INSTALL_PLUGINS: alexanderzobnin-zabbix-app,alexanderzobnin-zabbix-datasource,novalabs-ora-datasource,marcusolsson-json-datasource,grafana-piechart-panel
       GF_PLUGIN_ALLOW_LOADING_UNSIGNED_PLUGINS: alexanderzobnin-zabbix-app,novalabs-ora-datasource
       GF_SERVER_ROOT_URL: http://localhost:3000
-    depends_on:
-      postgres:
-        condition: service_healthy
     volumes:
       - grafana-storage:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
