@@ -18,7 +18,7 @@ services:
     container_name: grafana-redis
     restart: unless-stopped
     ports:
-      - 6379:6379
+      - "16379:6379"
 
   prometheus:
     image: prom/prometheus:latest
@@ -27,14 +27,14 @@ services:
     volumes:
       - ./prometheus:/etc/prometheus:ro
     ports:
-      - 9090:9090
+      - "19090:9090"
 
   loki:
     image: grafana/loki:2.9.7
     container_name: grafana-loki
     restart: unless-stopped
     ports:
-      - 3100:3100
+      - "13100:3100"
     command: -config.file=/etc/loki/local-config.yaml
     volumes:
       - ./loki:/etc/loki
@@ -47,7 +47,7 @@ services:
     container_name: grafana
     restart: unless-stopped
     ports:
-      - 3000:3000
+      - "13000:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -63,19 +63,12 @@ services:
       GF_DATABASE_PASSWORD: ${DATABASE_PASSWORD}
       GF_INSTALL_PLUGINS: alexanderzobnin-zabbix-app,alexanderzobnin-zabbix-datasource,novalabs-ora-datasource,marcusolsson-json-datasource
       GF_PLUGIN_ALLOW_LOADING_UNSIGNED_PLUGINS: alexanderzobnin-zabbix-app,novalabs-ora-datasource
-      GF_SERVER_ROOT_URL: http://localhost:3000
+      GF_SERVER_ROOT_URL: http://localhost:13000
     volumes:
       - grafana-storage:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
 
 volumes:
   pgdata:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /mnt/postgresql/data
   grafana-storage:
-    driver: local
   loki-storage:
-    driver: local
