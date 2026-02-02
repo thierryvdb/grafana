@@ -23,8 +23,8 @@ BEGIN
 END;$$;
 
 -- pre-create partitions for the upcoming five calendar years
-SELECT create_metric_partition(EXTRACT(YEAR FROM NOW())::INT + gs.offset)
-FROM generate_series(0, 4) AS gs(offset);
+SELECT create_metric_partition(EXTRACT(YEAR FROM NOW())::INT + gs."offset")
+FROM generate_series(0, 4) AS gs("offset");
 
 CREATE OR REPLACE FUNCTION ensure_partition()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
