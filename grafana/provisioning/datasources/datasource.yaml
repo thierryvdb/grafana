@@ -4,23 +4,23 @@ datasources:
   - name: Zabbix
     type: alexanderzobnin-zabbix-datasource
     access: proxy
-    url: ${ZABBIX_API_URL}
+    url: $${ZABBIX_API_URL}
     basicAuth: false
     jsonData:
       keepCookies: []
       tlsSkipVerify: false
       httpMethod: POST
     secureJsonData:
-      apitoken: ${ZABBIX_API_TOKEN}
+      apitoken: $${ZABBIX_API_TOKEN}
     isDefault: false
     editable: true
   - name: JSON API
     type: marcusolsson-json-datasource
     access: proxy
-    url: ${JSON_API_URL}
+    url: $${JSON_API_URL}
     jsonData:
       httpHeaderName1: Authorization
-      httpHeaderValue1: Bearer ${JSON_API_BEARER_TOKEN}
+      httpHeaderValue1: Bearer $${JSON_API_BEARER_TOKEN}
     basicAuth: false
     isDefault: false
     editable: true
@@ -31,3 +31,4 @@ datasources:
     basicAuth: false
     isDefault: false
     editable: true
+

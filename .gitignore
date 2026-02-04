@@ -1,0 +1,7 @@
+# Arquivos de ambiente
+.env
+
+# Volumes do Docker
+pgdata/
+grafana-storage/
+loki-storage/

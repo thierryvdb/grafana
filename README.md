@@ -1,65 +1,117 @@
 # Grafana Observability Stack
 
-Este projeto entrega um stack completo com Grafana, PostgreSQL 14 (partitioned por ano), Redis, Prometheus e integração pronta para Zabbix e APIs JSON. A ideia é usar o Grafana como camada unificadora de métricas corporativas (tempo real e históricas), com:
+Este projeto fornece uma stack de observabilidade completa e conteinerizada, ideal para centralizar e visualizar métricas de diversas fontes. A stack inclui Grafana, Prometheus, PostgreSQL e Redis, todos orquestrados com Docker Compose.
 
-1. Banco PostgreSQL preparado para armazenar séries temporais ou logs no esquema `metric_samples`, garantindo que os dados sejam particionados por ano automaticamente e armazenados no volume do SO montado em `/mnt/postgresql/data`.
-2. Grafana com todos os plugins solicitados (app Zabbix, datasource Zabbix, datasource Oracle 12c, JSON API, painel de pizza) para acessar dados de Zabbix, ler APIs JSON e também suportar conexões a bases Oracle.
-3. Redis para cache/alertas (depois configurado pelo usuário) e Prometheus para scraping local (Grafana e Prometheus se enxergam) e visualização de métricas do próprio cluster.
-4. Loki para centralizar logs de aplicações e do próprio Grafana em `http://localhost:3100`, permitindo que dashboards incluam painéis de logs lado a lado com métricas.
+## Arquitetura
 
-## Build e execução
+O diagrama abaixo ilustra a arquitetura da stack de observabilidade:
 
-1. **Garanta que o diretório de dados existe:**
-   ```powershell
-   mkdir -Force C:/mnt/postgresql/data
-   ```
-   Essa pasta é exposta ao contêiner PostgreSQL automaticamente via `docker-compose.yml`.
+```
++-----------------+      +-----------------+      +-----------------+
+|   Zabbix        |------>|   Grafana       |<------|   Prometheus    |
+| (Fonte Externa) |      | (Porta: 13000)  |      | (Coleta Métricas) |
++-----------------+      +-----------------+      +-----------------+
+                         |      ^      ^      |
+                         |      |      |      |
+                         v      v      v      v
++-----------------+      +-----------------+
+|   JSON API      |------>|   PostgreSQL    |
+| (Fonte Externa) |      |  (Banco de Dados) |
++-----------------+      +-----------------+
+                         |      ^
+                         |      |
+                         v      v
+                         +-----------------+
+                         |      Redis      |
+                         |     (Cache)     |
+                         +-----------------+
+```
 
-2. **Construir a imagem do Grafana:**
-   ```powershell
-   docker compose build grafana
-   ```
-   O `Dockerfile` copia a provisão do Grafana e instala em tempo de build os plugins requisitados.
+### Componentes
 
-3. **Subir todo o stack:**
-   ```powershell
-   docker compose up -d
-   ```
-   O PostgreSQL aplica o script `postgres/init/partitioning.sql` no bootstrap, criando a tabela particionada `metric_samples` e o gatilho que gera partições anuais automaticamente.
+*   **Grafana**: Serviço principal de visualização. Pré-configurado com os seguintes data sources:
+    *   **Zabbix**: Para visualização de métricas do Zabbix.
+    *   **JSON API**: Para consumir dados de qualquer API JSON.
+    *   **Prometheus**: Para visualizar métricas coletadas pelo Prometheus.
 
-4. **Verificar logs/estado:**
-   ```powershell
-   docker compose ps
-   docker compose logs grafana
-   docker compose logs loki
-   ```
+*   **Prometheus**: Sistema de monitoramento e alerta. Coleta métricas dos serviços da stack.
 
-## Como o projeto funciona
+*   **PostgreSQL**: Banco de dados para o Grafana. A tabela `metric_samples` é particionada por ano para otimizar o armazenamento e a consulta de dados de séries temporais.
 
-- **Grafana:** usa o `Dockerfile` customizado com `GF_INSTALL_PLUGINS` para garantir que os apps/datasources Zabbix, Oracle 12c, JSON API e o painel de pizza já estejam disponíveis. A pasta `grafana/provisioning/datasources/datasource.yaml` injeta dois data sources na inicialização (Zabbix e JSON API) usando variáveis de ambiente (`ZABBIX_API_URL`, `JSON_API_URL`, etc.). Ajuste esses valores em um `.env.local` ou no entorno do contêiner antes de subir o stack.
+*   **Redis**: Cache para o Grafana, melhorando a performance de dashboards e consultas.
 
-- **PostgreSQL:** o volume `pgdata` está mapeado para `/mnt/postgresql/data` no host, garantindo persistência fora do contêiner. O script de inicialização cria a tabela `metric_samples` com triggers que chamam `create_metric_partition` para garantir partições anuais (2024 em diante) antes de qualquer inserção. Para adicionar um ano futuro manualmente, rode:
-  ```sql
-  SELECT create_metric_partition(2028);
-  ```
+## Estrutura do Projeto
 
-- **Prometheus:** lê métricas locais (incluindo o próprio Grafana) a partir do arquivo `prometheus/prometheus.yml`. Você pode apontar o Grafana para esse Prometheus como uma fonte adicional, usando o endereço `http://prometheus:9090`.
+```
+.
+├── .env                    # Variáveis de ambiente para a stack
+├── .env.example            # Exemplo de arquivo de variáveis de ambiente
+├── docker-compose.yml      # Orquestração dos contêineres
+├── Dockerfile              # Dockerfile para a imagem customizada do Grafana
+├── grafana/
+│   └── provisioning/
+│       └── datasources/
+│           └── datasource.yaml # Provisionamento dos data sources do Grafana
+├── postgres/
+│   └── init/
+│       └── partitioning.sql # Script de inicialização do PostgreSQL
+└── prometheus/
+    └── prometheus.yml      # Configuração do Prometheus
+```
 
-- **Redis:** fica disponível em `grafana-redis:6379` para suportar caching e outras funcionalidades (ex.: alertas do Grafana ou reservas de sessões). Ele também é exposto para testes (`localhost:6379`).
+## Como Começar
 
-- **Loki:** o contêiner `grafana-loki` expõe `http://localhost:3100` e armazena chunks/index em `loki/`. Basta adicionar mais um data source do tipo Loki no Grafana apontando para `http://loki:3100` para correlacionar logs de aplicativos, redes ou da própria plataforma dentro dos dashboards existentes.
+### Pré-requisitos
 
-## Papéis do Grafana e funções extra
+*   Docker e Docker Compose instalados.
 
-1. **Integração com Zabbix:** o app/data source do Zabbix permite puxar métricas diretamente da API (`ZABBIX_API_URL`). Configure o token em `ZABBIX_API_TOKEN` para autenticação segura.
-2. **Leitura de APIs JSON:** o plugin JSON API ajuda o Grafana a consumir endpoints REST/JSON (via `JSON_API_URL`) e transformar respostas em métricas e painéis.
-3. **Suporte Oracle 12c:** o plugin `novalabs-ora-datasource` já está instalado para conectar o Grafana a instâncias Oracle 12c autenticadas via credentials definidas no próprio Grafana.
-4. **Zabbix App:** oferece painéis prontos e descoberta de hosts, facilitando a visualização de ativos monitorados e alertas.
+### Configuração
 
-## Próximos passos sugeridos
+1.  **Clone o repositório:**
+    ```bash
+    git clone https://github.com/seu-usuario/seu-repositorio.git
+    cd seu-repositorio
+    ```
 
-1. Configure os valores ausentes (`ZABBIX_API_URL`, `ZABBIX_API_TOKEN`, `JSON_API_URL`, `JSON_API_BEARER_TOKEN`) em um `.env.local` ou diretamente no ambiente dos contêineres.
-2. Crie dashboards no Grafana e aponte o Prometheus como uma fonte para agregar métricas internas e externas.
-3. Certifique-se de ajustar regras de firewall/Proxy para que o Grafana alcance o Zabbix e a API JSON reais usadas na sua organização.
-4. Adicione um data source do tipo Loki (`http://loki:3100`) para que os painéis possam correlacionar logs e métricas e explore os dashboards com os logs agregados pela nova fonte.
-# grafana
+2.  **Configure as variáveis de ambiente:**
+    *   Crie uma cópia do arquivo `.env.example` com o nome `.env`.
+    *   Preencha as variáveis de ambiente no arquivo `.env` com os valores corretos para a sua configuração. **É crucial alterar as senhas padrão!**
+
+### Execução
+
+1.  **Suba a stack:**
+    ```bash
+    docker-compose up -d
+    ```
+
+2.  **Acesse o Grafana:**
+    *   Abra o seu navegador e acesse `http://localhost:13000`.
+    *   O usuário e senha padrão do Grafana são `admin`/`admin`.
+
+
+## Atualizando a stack
+
+1.  **Atualize variáveis e código:** revise e ajuste `.env`, `Dockerfile`, `grafana/provisioning` ou `prometheus/prometheus.yml` conforme o novo requisito.
+2.  **Puxe e compile imagens:** execute `docker-compose pull` para baixar novas versões base e `docker-compose build grafana` se o Dockerfile mudou.
+3.  **Reimplante sem perda dos dados:** rode `docker-compose up -d --remove-orphans` para subir as imagens atualizadas. Para reimplantação pontual, use `docker-compose up -d --no-deps --build <serviço>` (por exemplo `grafana`).
+4.  **Valide o rollout:** confira `docker-compose ps` e `docker-compose logs <serviço>` e verifique que os containers apresentam a nova versão.
+
+## Preservando o banco de dados PostgreSQL
+
+1.  **Volume persistente:** o volume `pgdata` mantém os dados fora do container. Não execute `docker-compose down -v` nem `docker volume rm pgdata`, pois isso destrói o banco.
+2.  **Atualizações focadas no resto da stack:** quando precisar ajustar Grafana, Prometheus ou Redis, reimplante apenas os serviços necessários (`docker-compose up -d --no-deps --build grafana prometheus redis` ou `docker-compose restart grafana`). O PostgreSQL permanece rodando e reaproveita seu volume.
+3.  **Mudança de esquema ou dados:** conecte-se ao PostgreSQL (`docker-compose exec postgres psql ...`) para aplicar migrações e backups antes de reiniciar outros serviços. Dessa forma, apenas o que mudou é recarregado.
+
+## Detalhes da Implementação
+
+### Particionamento do PostgreSQL
+
+O script `postgres/init/partitioning.sql` cria a tabela `metric_samples` particionada por ano. Isso é feito para otimizar o armazenamento e a consulta de grandes volumes de dados de séries temporais. Uma função e um gatilho garantem que novas partições sejam criadas automaticamente quando novos dados são inseridos.
+
+### Provisionamento do Grafana
+
+O `datasource.yaml` em `grafana/provisioning/datasources` provisiona automaticamente os data sources Zabbix, JSON API e Prometheus no Grafana. As configurações para esses data sources, como URLs e tokens de autenticação, são lidas a partir das variáveis de ambiente.
+
+## Contribuindo
+
+Contribuições são bem-vindas! Se você encontrar algum problema ou tiver alguma sugestão, por favor, abra uma issue ou envie um pull request.
